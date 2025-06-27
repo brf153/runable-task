@@ -1,0 +1,10 @@
+{
+  "name": "coding-agent-brain",
+  "version": "1.0.0",
+  "description": "The agent's core logic",
+  "main": "main.js",
+  "type": "module",
+  "dependencies": {
+    "openai": "^4.28.4"
+  }
+}
