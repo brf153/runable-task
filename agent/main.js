@@ -3,13 +3,13 @@ import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import OpenAI from 'openai';
+import { WORKSPACE_DIR, SCRATCHPAD_FILENAME, STATUS_FILENAME, ARCHIVE_FILENAME } from './constants.js';
+import { isCommandAllowed } from './helper.js';
 
 const execAsync = promisify(exec);
 
-// --- Configuration ---
-const WORKSPACE_DIR = "/home/agent/workspace";
-const SCRATCHPAD_FILE = path.join(WORKSPACE_DIR, "agent_scratchpad.md");
-const STATUS_FILE = path.join(WORKSPACE_DIR, "status.json");
+const SCRATCHPAD_FILE = path.join(WORKSPACE_DIR, SCRATCHPAD_FILENAME);
+const STATUS_FILE = path.join(WORKSPACE_DIR, STATUS_FILENAME);
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -17,6 +17,9 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function execute_shell(command) {
     console.log(`Executing shell command: ${command}`);
+    if (!isCommandAllowed(command)) {
+        return `ERROR: Command "${command}" is not allowed for safety reasons.`;
+    }
     try {
         const { stdout, stderr } = await execAsync(command, { cwd: WORKSPACE_DIR, timeout: 30000 });
         return `STDOUT:\n${stdout}\nSTDERR:\n${stderr}`;
@@ -55,7 +58,7 @@ async function task_finished(final_project_path) {
     } catch (e) {
         return `ERROR: The specified project path '${final_project_path}' does not exist.`;
     }
-    const zipCommand = `zip -r /home/agent/workspace/project.zip ${final_project_path}`;
+    const zipCommand = `zip -r ${path.join(WORKSPACE_DIR, ARCHIVE_FILENAME)} ${final_project_path}`;
     await execute_shell(zipCommand);
     return "Task marked as finished. Project archived at project.zip.";
 }
@@ -99,7 +102,8 @@ async function main() {
     await updateStatus("running", "Agent started.");
 
     let messages = [
-        { role: "system", content: "You are an expert software developer agent using a NodeJS environment. Your goal is to complete the user's task by using the provided tools. You operate in a sandboxed environment. All file paths are relative to the `/workspace` directory. Think step-by-step. When the task is fully complete, call the `task_finished` tool with the path to the final project folder." },
+        { role: "system", content: "You are a code generation agent working in a NodeJS sandbox at /workspace. Use tools to modify files and complete the user’s goal. When finished, call task_finished with the project folder."
+ },
         { role: "user", content: `The main goal is: ${initialTask}. Here is the current state of your environment. Decide on your next action.\n${await getContextSummary()}` }
     ];
     
@@ -110,8 +114,8 @@ async function main() {
     for (let i = 0; i < maxTurns; i++) {
         console.log(`--- Turn ${i + 1}/${maxTurns} ---`);
 
-        const response = await client.chat.completions.create({
-            model: "gpt-4-1106-preview",
+        const response = await callOpenAIWithRetry(client,{
+            model: "gpt-3.5-turbo",
             messages: messages,
             tools: [
                 { type: "function", function: { name: "execute_shell", description: "Executes a shell command.", parameters: { type: "object", properties: { "command": { "type": "string" } }, required: ["command"] } } },
