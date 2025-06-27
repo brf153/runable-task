@@ -12,8 +12,8 @@ Nomad Shell is a system for orchestrating autonomous code-generation agents in i
 - **Agent (`agent/main.js`)**:  
   The core logic that runs inside each Docker container. The agent receives a task, interacts with the OpenAI API, and uses a set of tools (shell commands, file read/write, etc.) to iteratively solve the task. It logs its actions and archives the final project.
 
-- **Sandbox Environment (`sandbox/Dockerfile`, `sandbox/start.sh`)**:  
-  Defines the Docker image and entrypoint script. Each job runs in an isolated container with a mounted workspace directory for outputs.
+- **Sandbox Environment (`sandbox/start.sh`)**:  
+  Defines the entrypoint script. Each job runs in an isolated container with a mounted workspace directory for outputs.
 
 ## Workflow
 
